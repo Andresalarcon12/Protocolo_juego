@@ -25,10 +25,10 @@ int main(int argc, char *argv[]) {
     printf("[MAIN] Iniciando servidor CDSP en puerto %d\n", port);
     printf("[MAIN] Interfaz web en puerto %d\n", port + 1);
 
-    // Arrancar servidor HTTP en puerto+1 (ej: 8081)
+    //Arrancar servidor HTTP en puerto+1 (ej: 8081)
     http_server_start(port + 1, server_get_gamestate());
 
-    // Arrancar servidor de juego (bloquea aquí)
+    //Arrancar servidor de juego (bloquea aquí)
     server_run(port);
 
     logger_close();

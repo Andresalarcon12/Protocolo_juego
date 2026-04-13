@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200112L
 #include "server.h"
 #include "logger.h"
 #include "game.h"

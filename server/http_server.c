@@ -13,7 +13,7 @@
 
 static GameState *game_state;
 
-// ── HTML base con estilos ─────────────────────────────
+//HTML base con estilos
 static const char *HTML_HEADER =
     "<!DOCTYPE html><html lang='es'><head>"
     "<meta charset='UTF-8'>"
@@ -47,7 +47,7 @@ static const char *HTML_HEADER =
 
 static const char *HTML_FOOTER = "</div></body></html>";
 
-// ── Enviar respuesta HTTP completa ────────────────────
+//Enviar respuesta HTTP completa
 static void send_response(int fd, int status_code, const char *status_text,
                            const char *content_type, const char *body) {
     char header[512];
@@ -63,7 +63,7 @@ static void send_response(int fd, int status_code, const char *status_text,
     send(fd, body, body_len, 0);
 }
 
-// ── Página de login ───────────────────────────────────
+//Página de login
 static void send_login_page(int fd, const char *error_msg) {
     char body[HTTP_BUFFER];
     snprintf(body, sizeof(body),
@@ -86,7 +86,7 @@ static void send_login_page(int fd, const char *error_msg) {
     send_response(fd, 200, "OK", "text/html", body);
 }
 
-// ── Página de partidas activas ────────────────────────
+//Página de partidas activas
 static void send_games_page(int fd) {
     char rows[2048] = "";
 
@@ -133,10 +133,10 @@ static void send_games_page(int fd) {
     send_response(fd, 200, "OK", "text/html", body);
 }
 
-// ── Procesar POST /login ──────────────────────────────
+//Procesar POST /login
 static void handle_login_post(int fd, const char *body) {
-    // Parsear username y password del body
-    // Formato: username=user1&password=pass
+    //Parsear username y password del body
+    //Formato: username=user1&password=pass
     char username[64] = "";
     char password[64] = "";
 
@@ -146,8 +146,8 @@ static void handle_login_post(int fd, const char *body) {
     if (u) sscanf(u + 9, "%63[^&\r\n]", username);
     if (p) sscanf(p + 9, "%63[^&\r\n]", password);
 
-    // Validar contra usuarios conocidos
-    // (En req 2 esto consultará el servicio de identidad)
+    //Validar contra usuarios conocidos
+    //(En req 2 esto consultará el servicio de identidad)
     int valid = 0;
     const char *role = "";
     if (strcmp(username, "user1") == 0) { valid = 1; role = "ATTACKER"; }
@@ -161,7 +161,7 @@ static void handle_login_post(int fd, const char *body) {
         return;
     }
 
-    // Login exitoso: redirigir a /games con mensaje
+    //Login exitoso: redirigir a /games con mensaje
     char body_html[HTTP_BUFFER];
     snprintf(body_html, sizeof(body_html),
              "%s<h1>⚔ CDSP</h1>"
@@ -172,7 +172,7 @@ static void handle_login_post(int fd, const char *body) {
              "%s",
              HTML_HEADER, username, role, HTML_FOOTER);
 
-    // Respuesta 302 redirect + mostrar página
+    //Respuesta 302 redirect + mostrar página
     char redirect[512];
     snprintf(redirect, sizeof(redirect),
              "HTTP/1.1 200 OK\r\n"
@@ -184,7 +184,7 @@ static void handle_login_post(int fd, const char *body) {
     send(fd, body_html, strlen(body_html), 0);
 }
 
-// ── Página 404 ────────────────────────────────────────
+//Página 404
 static void send_404(int fd) {
     char body[512];
     snprintf(body, sizeof(body),
@@ -194,22 +194,22 @@ static void send_404(int fd) {
     send_response(fd, 404, "Not Found", "text/html", body);
 }
 
-// ── Parsear y despachar petición HTTP ─────────────────
+//Parsear y despachar petición HTTP
 static void handle_http_request(int fd, const char *client_ip, int client_port) {
     char buffer[HTTP_BUFFER];
     ssize_t bytes = recv(fd, buffer, sizeof(buffer) - 1, 0);
     if (bytes <= 0) return;
     buffer[bytes] = '\0';
 
-    // Extraer método y ruta de la primera línea
-    // Formato: "GET /ruta HTTP/1.1"
+    //Extraer método y ruta de la primera línea
+    //Formato: "GET /ruta HTTP/1.1"
     char method[8] = "", path[256] = "", version[16] = "";
     sscanf(buffer, "%7s %255s %15s", method, path, version);
 
     logger_log(client_ip, client_port, "HTTP",
                buffer[0] ? buffer : "(vacío)");
 
-    // Despachar según método y ruta
+    //Despachar según método y ruta
     if (strcmp(method, "GET") == 0) {
         if (strcmp(path, "/") == 0 || strcmp(path, "/login") == 0)
             send_login_page(fd, NULL);
@@ -220,7 +220,7 @@ static void handle_http_request(int fd, const char *client_ip, int client_port) 
 
     } else if (strcmp(method, "POST") == 0) {
         if (strcmp(path, "/login") == 0) {
-            // El body del POST está después de los headers (\r\n\r\n)
+            //El body del POST está después de los headers (\r\n\r\n)
             char *body_start = strstr(buffer, "\r\n\r\n");
             if (body_start) body_start += 4;
             else body_start = "";
@@ -230,12 +230,12 @@ static void handle_http_request(int fd, const char *client_ip, int client_port) 
         }
 
     } else {
-        // Método no soportado
+        //Método no soportado
         send_response(fd, 400, "Bad Request", "text/plain", "Bad Request");
     }
 }
 
-// ── Hilo por conexión HTTP ────────────────────────────
+//Hilo por conexión HTTP
 typedef struct { int fd; char ip[46]; int port; } HttpClient;
 
 static void *http_client_thread(void *arg) {
@@ -246,7 +246,7 @@ static void *http_client_thread(void *arg) {
     return NULL;
 }
 
-// ── Hilo principal del servidor HTTP ─────────────────
+//Hilo principal del servidor HTTP
 static void *http_server_thread(void *arg) {
     int port = *(int *)arg;
     free(arg);
@@ -293,7 +293,7 @@ static void *http_server_thread(void *arg) {
     return NULL;
 }
 
-// ── Punto de entrada público ──────────────────────────
+//Punto de entrada público
 void http_server_start(int port, GameState *gs) {
     game_state = gs;
     int *p = malloc(sizeof(int));

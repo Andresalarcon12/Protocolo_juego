@@ -3,20 +3,20 @@ import threading
 import tkinter as tk
 from tkinter import messagebox, simpledialog
 
-# ── Configuración ─────────────────────────────────────
-HOST = "localhost"   # Cambiar por nombre de dominio en producción
+#Configuración
+HOST = "localhost"   #Cambiar por nombre de dominio en producción
 PORT = 8080
 
-MAP_W = 100          # Dimensiones lógicas del mapa
+MAP_W = 100          #Dimensiones lógicas del mapa
 MAP_H = 100
-CANVAS_W = 500       # Dimensiones visuales del canvas
+CANVAS_W = 500       #Dimensiones visuales del canvas
 CANVAS_H = 500
-CELL = CANVAS_W // MAP_W  # Píxeles por celda = 5
+CELL = CANVAS_W // MAP_W  #Píxeles por celda = 5
 
-# Recursos críticos conocidos por defensores (el servidor los revela)
-RESOURCES = {}       # {resource_id: (x, y)}
+#Recursos críticos conocidos por defensores (el servidor los revela)
+RESOURCES = {}       #{resource_id: (x, y)}
 
-# ── Estado del cliente ────────────────────────────────
+#Estado del cliente
 state = {
     "username": "",
     "role": "",
@@ -24,17 +24,17 @@ state = {
     "x": 0,
     "y": 0,
     "started": False,
-    "players": {},   # {username: (x, y)}
+    "players": {},   #{username: (x, y)}
 }
 
 sock = None
 running = True
 
-# ── Conversión coordenadas lógicas → canvas ───────────
+#Conversión coordenadas lógicas → canvas
 def to_canvas(x, y):
     return x * CELL + CELL // 2, y * CELL + CELL // 2
 
-# ── Enviar mensaje al servidor ────────────────────────
+#Enviar mensaje al servidor
 def send_cmd(cmd):
     if sock:
         try:
@@ -42,23 +42,23 @@ def send_cmd(cmd):
         except Exception as e:
             log(f"[ERROR] No se pudo enviar: {e}")
 
-# ── Log en el panel de eventos ────────────────────────
+#Log en el panel de eventos
 def log(msg):
     log_box.config(state="normal")
     log_box.insert("end", msg + "\n")
     log_box.see("end")
     log_box.config(state="disabled")
 
-# ── Redibujar el mapa ─────────────────────────────────
+#Redibujar el mapa
 def redraw_map():
     canvas.delete("all")
 
-    # Grid de fondo
+    #Grid de fondo
     for i in range(0, CANVAS_W, CELL * 10):
         canvas.create_line(i, 0, i, CANVAS_H, fill="#e0e0e0")
         canvas.create_line(0, i, CANVAS_W, i, fill="#e0e0e0")
 
-    # Recursos críticos
+    #Recursos críticos
     for rid, (rx, ry) in RESOURCES.items():
         cx, cy = to_canvas(rx, ry)
         canvas.create_rectangle(
@@ -68,7 +68,7 @@ def redraw_map():
         canvas.create_text(cx, cy, text="SRV", fill="white",
                            font=("Courier", 6, "bold"))
 
-    # Otros jugadores
+    #Otros jugadores
     for uname, (px, py) in state["players"].items():
         if uname == state["username"]:
             continue
@@ -79,7 +79,7 @@ def redraw_map():
         canvas.create_text(cx, cy + 12, text=uname,
                            fill=color, font=("Courier", 7))
 
-    # Jugador propio (siempre encima)
+    #Jugador propio (siempre encima)
     if state["username"]:
         cx, cy = to_canvas(state["x"], state["y"])
         color = "#00cc44" if state["role"] == "ATTACKER" else "#4444ff"
@@ -88,13 +88,13 @@ def redraw_map():
         canvas.create_text(cx, cy + 14, text=state["username"],
                            fill=color, font=("Courier", 8, "bold"))
 
-    # Coordenadas actuales
+    #Coordenadas actuales
     coord_label.config(
         text=f"Pos: ({state['x']}, {state['y']})  |  "
              f"Rol: {state['role']}  |  Sala: {state['room_id']}"
     )
 
-# ── Procesador de mensajes del servidor ───────────────
+#Procesador de mensajes del servidor
 def process_message(msg):
     msg = msg.strip()
     if not msg:
@@ -105,7 +105,7 @@ def process_message(msg):
     cmd = parts[0]
 
     if cmd == "WELCOME":
-        # WELCOME username role
+        #WELCOME username role
         state["username"] = parts[1]
         state["role"]     = parts[2]
         state["players"][parts[1]] = (0, 0)
@@ -115,7 +115,7 @@ def process_message(msg):
         redraw_map()
 
     elif cmd == "JOINED":
-        # JOINED room_id map_w map_h
+        #JOINED room_id map_w map_h
         state["room_id"] = int(parts[1])
         btn_join.config(state="disabled")
         btn_create.config(state="disabled")
@@ -125,18 +125,18 @@ def process_message(msg):
     elif cmd == "START":
         state["started"] = True
         log("[JUEGO] ¡La partida comenzó!")
-        # Habilitar controles según rol
+        #Habilitar controles según rol
         if state["role"] == "ATTACKER":
             frame_attack.pack(pady=4)
         else:
             frame_defend.pack(pady=4)
-            # El defensor ve los recursos desde el inicio
+            #El defensor ve los recursos desde el inicio
             for rid, (rx, ry) in RESOURCES.items():
                 log(f"[INFO] Recurso crítico {rid} en ({rx},{ry})")
         redraw_map()
 
     elif cmd == "GAMES":
-        # GAMES count [room_id players status] ...
+        #GAMES count [room_id players status] ...
         count = int(parts[1])
         if count == 0:
             log("[LOBBY] No hay partidas activas. Crea una con 'Crear sala'.")
@@ -148,7 +148,7 @@ def process_message(msg):
                 i += 3
 
     elif cmd == "MOVED":
-        # MOVED username x y
+        #MOVED username x y
         uname = parts[1]
         x, y  = int(parts[2]), int(parts[3])
         state["players"][uname] = (x, y)
@@ -157,7 +157,7 @@ def process_message(msg):
         redraw_map()
 
     elif cmd == "FOUND":
-        # FOUND resource_id x y  (solo atacante)
+        #FOUND resource_id x y  (solo atacante)
         rid = int(parts[1])
         rx, ry = int(parts[2]), int(parts[3])
         RESOURCES[rid] = (rx, ry)
@@ -168,7 +168,7 @@ def process_message(msg):
         redraw_map()
 
     elif cmd == "ALERT":
-        # ALERT resource_id x y time_limit
+        #ALERT resource_id x y time_limit
         rid = int(parts[1])
         rx, ry = int(parts[2]), int(parts[3])
         tl = parts[4]
@@ -206,7 +206,7 @@ def process_message(msg):
     elif cmd == "BYE":
         log("[INFO] Desconectado del servidor.")
 
-# ── Hilo receptor de mensajes ─────────────────────────
+#Hilo receptor de mensajes
 def receiver():
     buffer = ""
     while running:
@@ -223,7 +223,7 @@ def receiver():
         except Exception:
             break
 
-# ── Acciones de la GUI ────────────────────────────────
+#Acciones de la GUI
 def do_login():
     username = entry_user.get().strip()
     password = entry_pass.get().strip()
@@ -262,7 +262,7 @@ def do_defend():
     if rid:
         send_cmd(f"DEFEND {rid}")
 
-# ── Teclado para mover ────────────────────────────────
+#Teclado para mover
 def on_key(event):
     if not state["started"]:
         return
@@ -276,12 +276,12 @@ def on_key(event):
         dx, dy = mapping[event.keysym]
         do_move(dx, dy)
 
-# ── Construir la GUI ──────────────────────────────────
+#Construir la GUI
 root = tk.Tk()
 root.title("CDSP Client")
 root.resizable(False, False)
 
-# Frame izquierdo: mapa + coords
+#Frame izquierdo: mapa + coords
 frame_left = tk.Frame(root, bg="#1a1a2e")
 frame_left.pack(side="left", padx=8, pady=8)
 
@@ -294,15 +294,15 @@ coord_label = tk.Label(frame_left, text="Pos: (0, 0)  |  Rol: —  |  Sala: —"
                        bg="#1a1a2e", fg="#aaaaaa", font=("Courier", 9))
 coord_label.pack(pady=4)
 
-# Instrucciones de movimiento
+#Instrucciones de movimiento
 tk.Label(frame_left, text="Mover: WASD o flechas",
          bg="#1a1a2e", fg="#666666", font=("Courier", 8)).pack()
 
-# Frame derecho: controles
+#Frame derecho: controles
 frame_right = tk.Frame(root, bg="#16213e", padx=10, pady=10)
 frame_right.pack(side="right", fill="y", padx=8, pady=8)
 
-# Login
+#Login
 tk.Label(frame_right, text="Login", bg="#16213e", fg="white",
          font=("Courier", 11, "bold")).pack(pady=(0,4))
 
@@ -327,7 +327,7 @@ btn_login.pack(pady=6, fill="x")
 
 tk.Frame(frame_right, bg="#333", height=1).pack(fill="x", pady=6)
 
-# Lobby
+#Lobby
 tk.Label(frame_right, text="Lobby", bg="#16213e", fg="white",
          font=("Courier", 11, "bold")).pack(pady=(0,4))
 
@@ -349,7 +349,7 @@ btn_list.config(command=lambda: [do_list(), btn_join.config(state="normal")])
 
 tk.Frame(frame_right, bg="#333", height=1).pack(fill="x", pady=6)
 
-# Controles atacante (ocultos hasta START)
+#Controles atacante (ocultos hasta START)
 frame_attack = tk.Frame(frame_right, bg="#16213e")
 tk.Label(frame_attack, text="Atacar recurso ID:",
          bg="#16213e", fg="#ff6666", font=("Courier", 9)).pack(anchor="w")
@@ -361,7 +361,7 @@ btn_attack = tk.Button(frame_attack, text="ATTACK",
                        state="disabled", command=do_attack)
 btn_attack.pack(side="left")
 
-# Controles defensor (ocultos hasta START)
+#Controles defensor (ocultos hasta START)
 frame_defend = tk.Frame(frame_right, bg="#16213e")
 tk.Label(frame_defend, text="Defender recurso ID:",
          bg="#16213e", fg="#6666ff", font=("Courier", 9)).pack(anchor="w")
@@ -375,7 +375,7 @@ btn_defend.pack(side="left")
 
 tk.Frame(frame_right, bg="#333", height=1).pack(fill="x", pady=6)
 
-# Log de eventos
+#Log de eventos
 tk.Label(frame_right, text="Eventos", bg="#16213e", fg="white",
          font=("Courier", 11, "bold")).pack(pady=(0,2))
 log_box = tk.Text(frame_right, width=28, height=16,
@@ -383,7 +383,7 @@ log_box = tk.Text(frame_right, width=28, height=16,
                   state="disabled", relief="flat")
 log_box.pack()
 
-# ── Conectar al servidor al arrancar ─────────────────
+#Conectar al servidor al arrancar
 try:
     sock = socket.create_connection((HOST, PORT))
     log(f"[INFO] Conectado a {HOST}:{PORT}")
@@ -391,15 +391,15 @@ except Exception as e:
     messagebox.showerror("Error", f"No se pudo conectar:\n{e}")
     sock = None
 
-# Arrancar hilo receptor
+#Arrancar hilo receptor
 if sock:
     t = threading.Thread(target=receiver, daemon=True)
     t.start()
 
-# Capturar teclado para movimiento
+#Capturar teclado para movimiento
 root.bind("<KeyPress>", on_key)
 
-# Cerrar limpiamente
+#Cerrar limpiamente
 def on_close():
     global running
     running = False

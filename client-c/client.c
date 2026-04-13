@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200112L
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,7 +13,7 @@
 #define MAP_W 100
 #define MAP_H 100
 
-// ── Estado del cliente ────────────────────────────────
+//Estado del cliente
 static char username[64] = "";
 static char role[16]     = "";
 static int  pos_x        = 0;
@@ -22,7 +23,7 @@ static int  started      = 0;
 static int  sock_fd      = -1;
 static int  running      = 1;
 
-// ── Colores ANSI para la consola ──────────────────────
+//Colores ANSI para la consola
 #define RESET   "\033[0m"
 #define RED     "\033[31m"
 #define GREEN   "\033[32m"
@@ -31,7 +32,7 @@ static int  running      = 1;
 #define CYAN    "\033[36m"
 #define BOLD    "\033[1m"
 
-// ── Enviar comando al servidor ────────────────────────
+//Enviar comando al servidor
 static void send_cmd(const char *cmd) {
     char buf[BUFFER_SIZE];
     snprintf(buf, sizeof(buf), "%s\r\n", cmd);
@@ -40,8 +41,8 @@ static void send_cmd(const char *cmd) {
     }
 }
 
-// ── Dibujar el minimapa en consola ────────────────────
-// Muestra una vista 21x21 centrada en el jugador
+//Dibujar el minimapa en consola
+//Muestra una vista 21x21 centrada en el jugador
 static void draw_map(void) {
     printf("\n" BOLD "═══════════════════════════════════════\n");
     printf("  CDSP — %s (%s) | Sala: %d | Pos: (%d,%d)\n",
@@ -55,12 +56,12 @@ static void draw_map(void) {
             int wx = pos_x + dx;
             int wy = pos_y + dy;
 
-            // Fuera del mapa
+            //Fuera del mapa
             if (wx < 0 || wx >= MAP_W || wy < 0 || wy >= MAP_H) {
                 printf(BLUE "░" RESET);
                 continue;
             }
-            // Posición propia
+            //Posición propia
             if (dx == 0 && dy == 0) {
                 if (strcmp(role, "ATTACKER") == 0)
                     printf(GREEN BOLD "A" RESET);
@@ -68,7 +69,7 @@ static void draw_map(void) {
                     printf(BLUE BOLD "D" RESET);
                 continue;
             }
-            // Recursos críticos conocidos (hardcodeados para demo)
+            //Recursos críticos conocidos (hardcodeados para demo)
             if ((wx == 25 && wy == 40) || (wx == 75 && wy == 70)) {
                 printf(RED "S" RESET);
                 continue;
@@ -80,7 +81,7 @@ static void draw_map(void) {
     printf(BOLD "═══════════════════════════════════════\n" RESET);
 }
 
-// ── Procesar mensajes del servidor ───────────────────
+//Procesar mensajes del servidor
 static void process_message(const char *msg) {
     char line[BUFFER_SIZE];
     strncpy(line, msg, sizeof(line) - 1);
@@ -107,9 +108,9 @@ static void process_message(const char *msg) {
         int count;
         sscanf(rest, "%d", &count);
         printf(CYAN "\n[LOBBY] Partidas activas: %d\n" RESET, count);
-        // Parsear entradas: room_id players status
+        //Parsear entradas: room_id players status
         char *token = strtok(rest, " ");
-        token = strtok(NULL, " "); // saltar el count
+        token = strtok(NULL, " "); //saltar el count
         while (token != NULL) {
             char rid[16], players[16], status[32];
             strncpy(rid, token, sizeof(rid));
@@ -182,7 +183,7 @@ static void process_message(const char *msg) {
     }
 }
 
-// ── Hilo receptor ─────────────────────────────────────
+//Hilo receptor
 static void *receiver(void *arg) {
     (void)arg;
     char buffer[BUFFER_SIZE * 4];
@@ -198,10 +199,10 @@ static void *receiver(void *arg) {
         }
         tmp[bytes] = '\0';
 
-        // Acumular en buffer con posible resto anterior
+        //Acumular en buffer con posible resto anterior
         strncat(leftover, tmp, sizeof(leftover) - strlen(leftover) - 1);
 
-        // Procesar línea por línea
+        //Procesar línea por línea
         char *ptr = leftover;
         char *end;
         while ((end = strstr(ptr, "\r\n")) != NULL) {
@@ -210,13 +211,13 @@ static void *receiver(void *arg) {
             process_message(buffer);
             ptr = end + 2;
         }
-        // Guardar lo que quedó sin \r\n
+        //Guardar lo que quedó sin \r\n
         memmove(leftover, ptr, strlen(ptr) + 1);
     }
     return NULL;
 }
 
-// ── Mostrar ayuda ─────────────────────────────────────
+//Mostrar ayuda
 static void print_help(void) {
     printf(CYAN "\nComandos disponibles:\n");
     printf("  HELLO <user> <pass>  — Iniciar sesión\n");
@@ -231,9 +232,9 @@ static void print_help(void) {
     printf("  help                 — Esta ayuda\n" RESET);
 }
 
-// ── Main ──────────────────────────────────────────────
+
 int main(int argc, char *argv[]) {
-    // Recibe host y puerto por argumento, o usa defaults
+    //Recibe host y puerto por argumento, o usa defaults
     const char *host = (argc >= 2) ? argv[1] : "localhost";
     const char *port_str = (argc >= 3) ? argv[2] : "8080";
 
@@ -242,21 +243,21 @@ int main(int argc, char *argv[]) {
     printf("╚══════════════════════════╝\n" RESET);
     printf("Conectando a %s:%s...\n", host, port_str);
 
-    // ── Resolución DNS con getaddrinfo (sin IPs hardcodeadas) ──
+    //Resolución DNS con getaddrinfo (sin IPs hardcodeadas)
     struct addrinfo hints, *res, *rp;
     memset(&hints, 0, sizeof(hints));
-    hints.ai_family   = AF_UNSPEC;    // IPv4 o IPv6
-    hints.ai_socktype = SOCK_STREAM;  // TCP
+    hints.ai_family   = AF_UNSPEC;    //IPv4 o IPv6
+    hints.ai_socktype = SOCK_STREAM;  //TCP
 
     int rc = getaddrinfo(host, port_str, &hints, &res);
     if (rc != 0) {
-        // Manejo de excepción: fallo de resolución sin terminar el proceso
+        //Manejo de excepción: fallo de resolución sin terminar el proceso
         fprintf(stderr, RED "[ERROR] getaddrinfo: %s\n" RESET, gai_strerror(rc));
         fprintf(stderr, "Verifica el nombre de host e intenta de nuevo.\n");
         return EXIT_FAILURE;
     }
 
-    // Intentar conectar con cada resultado de DNS
+    //Intentar conectar con cada resultado de DNS
     for (rp = res; rp != NULL; rp = rp->ai_next) {
         sock_fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
         if (sock_fd < 0) continue;
@@ -274,12 +275,12 @@ int main(int argc, char *argv[]) {
 
     printf(GREEN "[✓] Conectado. Escribe 'help' para ver los comandos.\n" RESET);
 
-    // Arrancar hilo receptor
+    //Arrancar hilo receptor
     pthread_t tid;
     pthread_create(&tid, NULL, receiver, NULL);
     pthread_detach(tid);
 
-    // ── Bucle principal de entrada ────────────────────
+    //Bucle principal de entrada
     char input[BUFFER_SIZE];
     print_help();
 
@@ -292,7 +293,7 @@ int main(int argc, char *argv[]) {
 
         if (strlen(input) == 0) continue;
 
-        // Atajos de movimiento con wasd
+        //Atajos de movimiento con wasd
         if (started && strlen(input) == 1) {
             int nx = pos_x, ny = pos_y;
             switch (input[0]) {
@@ -318,7 +319,7 @@ int main(int argc, char *argv[]) {
             break;
         }
 
-        // Cualquier otro comando se envía directo al servidor
+        //Cualquier otro comando se envía directo al servidor
         send_cmd(input);
     }
 

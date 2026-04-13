@@ -10,14 +10,14 @@
 #define MAX_USERS 16
 #define BUFFER_SIZE 256
 
-// ── Base de datos de usuarios ─────────────────────────
+//Base de datos de usuarios
 typedef struct {
     char username[64];
     char password[64];
-    char role[16];      // ATTACKER o DEFENDER
+    char role[16];      //ATTACKER o DEFENDER
 } User;
 
-// Aquí viven los usuarios — solo en este servicio
+//Aquí viven los usuarios — solo en este servicio
 static User users[] = {
     {"user1", "password123", "ATTACKER"},
     {"user2", "password123", "DEFENDER"},
@@ -26,7 +26,7 @@ static User users[] = {
 };
 static int user_count = 4;
 
-// ── Buscar usuario ────────────────────────────────────
+//Buscar usuario
 static const char *authenticate(const char *username, const char *password) {
     for (int i = 0; i < user_count; i++) {
         if (strcmp(users[i].username, username) == 0 &&
@@ -37,7 +37,7 @@ static const char *authenticate(const char *username, const char *password) {
     return NULL;
 }
 
-// ── Hilo por conexión ─────────────────────────────────
+//Hilo por conexión
 static void *handle_client(void *arg) {
     int fd = *(int *)arg;
     free(arg);
@@ -52,7 +52,7 @@ static void *handle_client(void *arg) {
 
     printf("[AUTH] Consulta: %s\n", buffer);
 
-    // Parsear: AUTH username password
+    //Parsear: AUTH username password
     char cmd[16], username[64], password[64];
     if (sscanf(buffer, "%15s %63s %63s", cmd, username, password) != 3 ||
         strcmp(cmd, "AUTH") != 0) {
@@ -77,7 +77,7 @@ static void *handle_client(void *arg) {
     return NULL;
 }
 
-// ── Main ──────────────────────────────────────────────
+
 int main(int argc, char *argv[]) {
     int port = (argc >= 2) ? atoi(argv[1]) : 9090;
 
