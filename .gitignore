@@ -1,0 +1,5 @@
+server/servidor
+server/*.o
+identity-service/identity
+client-c/cliente
+*.log
