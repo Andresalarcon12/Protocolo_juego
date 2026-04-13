@@ -1,4 +1,5 @@
 #include "http_server.h"
+#include "auth_client.h"
 #include "logger.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -106,7 +107,9 @@ static void send_games_page(int fd) {
                  game_state->rooms[i].player_count,
                  game_state->rooms[i].started ? "started" : "waiting",
                  game_state->rooms[i].started ? "En curso" : "Esperando");
-        strncat(rows, row, sizeof(rows) - strlen(rows) - 1);
+        if (strlen(rows) + strlen(row) < sizeof(rows) - 1) {
+            strncat(rows, row, sizeof(rows) - strlen(rows) - 1);
+        }
     }
     pthread_mutex_unlock(&game_state->lock);
 
@@ -146,17 +149,21 @@ static void handle_login_post(int fd, const char *body) {
     if (u) sscanf(u + 9, "%63[^&\r\n]", username);
     if (p) sscanf(p + 9, "%63[^&\r\n]", password);
 
-    //Validar contra usuarios conocidos
-    //(En req 2 esto consultará el servicio de identidad)
-    int valid = 0;
-    const char *role = "";
-    if (strcmp(username, "user1") == 0) { valid = 1; role = "ATTACKER"; }
-    if (strcmp(username, "user2") == 0) { valid = 1; role = "DEFENDER"; }
+    char role[16];
+    const char *host = getenv("AUTH_HOST");
+    const char *port = getenv("AUTH_PORT");
 
-    if (!valid) {
+    if (!host || !port) {
+        send_login_page(fd, "<p class='error'>Error de configuración</p>");
+        return;
+    }
+
+    int result = auth_request(host, port, username, password, role);
+
+    if (result <= 0 || strlen(role) == 0) {
         char err[128];
         snprintf(err, sizeof(err),
-                 "<p class='error'>Usuario o contraseña incorrectos.</p>");
+                "<p class='error'>Usuario o contraseña incorrectos.</p>");
         send_login_page(fd, err);
         return;
     }
@@ -175,7 +182,8 @@ static void handle_login_post(int fd, const char *body) {
     //Respuesta 302 redirect + mostrar página
     char redirect[512];
     snprintf(redirect, sizeof(redirect),
-             "HTTP/1.1 200 OK\r\n"
+             "HTTP/1.1 302 Found\r\n"
+             "Location: /games\r\n"
              "Content-Type: text/html; charset=utf-8\r\n"
              "Content-Length: %d\r\n"
              "Connection: close\r\n"
@@ -199,7 +207,13 @@ static void handle_http_request(int fd, const char *client_ip, int client_port) 
     char buffer[HTTP_BUFFER];
     ssize_t bytes = recv(fd, buffer, sizeof(buffer) - 1, 0);
     if (bytes <= 0) return;
+
     buffer[bytes] = '\0';
+
+    if (bytes == sizeof(buffer) - 1) {
+        send_response(fd, 400, "Bad Request", "text/plain", "Request too large");
+        return;
+    }
 
     //Extraer método y ruta de la primera línea
     //Formato: "GET /ruta HTTP/1.1"
@@ -285,7 +299,12 @@ static void *http_server_thread(void *arg) {
         inet_ntop(AF_INET, &client_addr.sin_addr, c->ip, sizeof(c->ip));
 
         pthread_t tid;
-        pthread_create(&tid, NULL, http_client_thread, c);
+        if (pthread_create(&tid, NULL, http_client_thread, c) != 0) {
+            perror("pthread_create()");
+            free(c);
+            close(client_fd);
+            continue;
+        }
         pthread_detach(tid);
     }
 

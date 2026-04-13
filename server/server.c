@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200112L
 #include "server.h"
+#include "auth_client.h"
 #include "logger.h"
 #include "game.h"
 #include <stdio.h>
@@ -39,53 +40,6 @@ static void check_found_resources(Player *p, int room_idx) {
     }
 }
 
-static Role query_identity_service(const char *username, const char *password) {
-    struct addrinfo hints, *res, *rp;
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family   = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-
-    int rc = getaddrinfo("localhost", "9090", &hints, &res);
-    if (rc != 0) {
-        fprintf(stderr, "[AUTH] getaddrinfo falló: %s\n", gai_strerror(rc));
-        return ROLE_NONE;
-    }
-
-    int fd = -1;
-    for (rp = res; rp != NULL; rp = rp->ai_next) {
-        fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
-        if (fd < 0) continue;
-        if (connect(fd, rp->ai_addr, rp->ai_addrlen) == 0) break;
-        close(fd);
-        fd = -1;
-    }
-    freeaddrinfo(res);
-
-    if (fd < 0) {
-        fprintf(stderr, "[AUTH] No se pudo conectar al servicio de identidad\n");
-        return ROLE_NONE;
-    }
-
-    char query[256];
-    snprintf(query, sizeof(query), "AUTH %s %s\r\n", username, password);
-    send(fd, query, strlen(query), 0);
-
-    char response[64];
-    memset(response, 0, sizeof(response));
-    recv(fd, response, sizeof(response) - 1, 0);
-    close(fd);
-
-    response[strcspn(response, "\r\n")] = '\0';
-
-    if (strncmp(response, "OK ", 3) == 0) {
-        char role_str[16];
-        sscanf(response + 3, "%15s", role_str);
-        if (strcmp(role_str, "ATTACKER") == 0) return ROLE_ATTACKER;
-        if (strcmp(role_str, "DEFENDER") == 0) return ROLE_DEFENDER;
-    }
-    return ROLE_NONE;
-}
-
 static void handle_hello(Player *p, char *params) {
     char username[64], password[64];
     if (sscanf(params, "%63s %63s", username, password) != 2) {
@@ -97,14 +51,49 @@ static void handle_hello(Player *p, char *params) {
         return;
     }
 
-    Role assigned = query_identity_service(username, password);
+    char role_str[16] = "";
+
+    if (strlen(username) == 0 || strlen(password) == 0) {
+        send_msg(p, "ERR 400 BAD_REQUEST\r\n");
+        return;
+    }
+
+    const char *host = getenv("AUTH_HOST");
+    const char *port = getenv("AUTH_PORT");
+
+    if (!host || !port) {
+        send_msg(p, "ERR 500 AUTH_CONFIG\r\n");
+        return;
+    }
+
+    int result = auth_request(host, port, username, password, role_str);
+
+    if (result <= 0 || strlen(role_str) == 0) {
+        send_msg(p, "ERR 401 UNAUTHORIZED\r\n");
+        return;
+    }
+
+    
+    printf("[AUTH] %s -> %s\n", username, role_str);
+
+    // Convertir string → enum
+    Role assigned;
+    if (strcmp(role_str, "ATTACKER") == 0)
+        assigned = ROLE_ATTACKER;
+    else if (strcmp(role_str, "DEFENDER") == 0)
+        assigned = ROLE_DEFENDER;
+    else {
+        send_msg(p, "ERR 500 INVALID_ROLE\r\n");
+        return;
+    }
 
     if (assigned == ROLE_NONE) {
         send_msg(p, "ERR 401 UNAUTHORIZED\r\n");
         return;
     }
 
-    strncpy(p->username, username, sizeof(p->username));
+    strncpy(p->username, username, sizeof(p->username) - 1);
+    p->username[sizeof(p->username) - 1] = '\0';
     p->role = assigned;
 
     char resp[128];
@@ -295,6 +284,10 @@ static void *handle_client(void *arg) {
     while (1) {
         memset(buffer, 0, sizeof(buffer));
         ssize_t bytes = recv(fd, buffer, sizeof(buffer) - 1, 0);
+        if (bytes >= sizeof(buffer) - 1) {
+            send(fd, "ERR 413 PAYLOAD_TOO_LARGE\r\n", 30, 0);
+            continue;
+        }
         if (bytes <= 0) {
             logger_log(ip, port, "DIS", "Cliente desconectado");
             break;
